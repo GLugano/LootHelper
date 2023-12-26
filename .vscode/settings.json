@@ -1,0 +1,23 @@
+{
+    "Lua.diagnostics.globals": [
+        "InterfaceOptionsFrame_OpenToCategory",
+        "InterfaceOptions_AddCategory",
+        "SlashCmdList",
+        "SELECTED_CHAT_FRAME",
+        "DEFAULT_CHAT_FRAME",
+        "ACCEPT",
+        "CANCEL",
+        "STATICPOPUP_NUMDIALOGS",
+        "StaticPopupDialogs",
+        "StaticPopup_Show",
+        "NORMAL_FONT_COLOR",
+        "GameFontHighlight",
+        "GameFontHighlightLarge",
+        "GameFontHighlightSmall",
+        "LOOT",
+        "ToggleLootHistoryFrame",
+        "GroupLootHistoryFrame",
+        "LootHistoryFrameMixin",
+        "SHOW"
+    ]
+}

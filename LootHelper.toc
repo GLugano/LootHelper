@@ -1,0 +1,15 @@
+## Interface: 100107
+## Version: 1.0.0
+## Title: LootHelper
+## Notes: Addon to help to track loot
+## Author: Cacetinho
+## SavedVariablesPerCharacter: MODAL_VISIBLE
+
+Libs\LibStub.lua
+Libs\AceConfig-3.0\AceConfig-3.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+
+Utils.lua
+LootHelper.lua

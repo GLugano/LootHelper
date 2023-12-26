@@ -1,0 +1,25 @@
+{
+  "name": "loothelper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "ugf": "update-addon-in-game-folder.bat"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GLugano/LootHelper.git"
+  },
+  "keywords": [
+    "wow",
+    "world of warcraft",
+    "combatlog",
+    "addon"
+  ],
+  "author": "Lugano",
+  "license": "SEE LICENSE IN LICENSE",
+  "bugs": {
+    "url": "https://github.com/GLugano/LootHelper/issues"
+  },
+  "homepage": "https://github.com/GLugano/LootHelper#readme"
+}
