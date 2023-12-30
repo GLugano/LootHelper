@@ -24,7 +24,7 @@ local RollType = {
 --- Normal variables
 local LootHelper = {}
 
-LootHelper.LootHistory = {}
+LootHelper.Frames = {}
 LootHelper.MainFrameRef = nil
 LootHelper.HeaderTextRef = nil
 LootHelper.MinimapIconOptions = LootHelper.MinimapIconOptions or { hide = false };
@@ -148,45 +148,52 @@ function LootHelper:UpdateList()
 
     for key in ADDON.Utils:OrderedPairs(LootBag) do
         local row = LootBag[key]
+        local framesRow = LootHelper.Frames[key]
         pos = pos + 1
 
-        if (not row.frame) then
-            row.frame = CreateFrame("Frame", nil, LootHelper.ScrollChildFrame)
-            row.frame:SetWidth(150)
-            row.frame:SetHeight(45)
-            row.frame:Show()
+        if (not framesRow) then
+            LootHelper.Frames[key] = {}
+            framesRow = LootHelper.Frames[key]
+        end
 
-            row.frameIcon = row.frame:CreateTexture(nil, "ARTWORK")
-            row.frameIcon:SetTexture(row.itemIcon)
-            row.frameIcon:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 15, 0)
-            -- row.frameIcon:SetAllPoints(row.frame)
-            row.frameIcon:SetSize(30, 30)
+        if (not framesRow.frame) then
+            framesRow.frame = CreateFrame("Frame", nil, LootHelper.ScrollChildFrame)
+            framesRow.frame:SetWidth(150)
+            framesRow.frame:SetHeight(45)
+            framesRow.frame:Show()
 
-            row.frameHeader = row.frame:CreateFontString(nil, "OVERLAY")
-            row.frameHeader:SetFontObject("GameFontHighlight")
-            row.frameHeader:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 50, -2)
-            row.frameHeader:SetText(row.itemLink)
+            framesRow.frameIcon = framesRow.frame:CreateTexture(nil, "ARTWORK")
+            framesRow.frameIcon:SetTexture(row.itemIcon)
+            framesRow.frameIcon:SetPoint("TOPLEFT", framesRow.frame, "TOPLEFT", 15, 0)
+            -- framesRow.frameIcon:SetAllPoints(framesRow.frame)
+            framesRow.frameIcon:SetSize(30, 30)
+
+            framesRow.frameHeader = framesRow.frame:CreateFontString(nil, "OVERLAY")
+            framesRow.frameHeader:SetFontObject("GameFontHighlight")
+            framesRow.frameHeader:SetPoint("TOPLEFT", framesRow.frame, "TOPLEFT", 50, -2)
+            framesRow.frameHeader:SetText(row.itemLink)
 
             -- Winner row
         end
 
-        if (not row.frameWinner) then
-            row.frameWinner = row.frame:CreateFontString(nil, "OVERLAY")
-            row.frameWinner:SetFontObject("GameFontHighlight")
-            row.frameWinner:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 50, -17)
-            row.frameWinner:SetText("-")
+        if (not framesRow.frameWinner) then
+            framesRow.frameWinner = framesRow.frame:CreateFontString(nil, "OVERLAY")
+            framesRow.frameWinner:SetFontObject("GameFontHighlight")
+            framesRow.frameWinner:SetPoint("TOPLEFT", framesRow.frame, "TOPLEFT", 50, -17)
+            framesRow.frameWinner:SetText("-")
         end
 
         if (row.isDone) then
             if (row.winner) then
                 local r, g, b, hex = GetClassColor(row.winner.class)
-                row.frameWinner:SetText("|cffddff00Winner:|r " .. "|c" .. hex .. row.winner.name .. "|r")
+                print(row.winner.class, hex)
+                framesRow.frameWinner:SetText("Winner: " .. "|c" .. hex .. row.winner.name .. "|r")
             else
-                row.frameWinner:SetText("All pass")
+                framesRow.frameWinner:SetText("All pass")
             end
         end
 
-        row.frame:SetPoint("TOPLEFT", LootHelper.ScrollChildFrame, "TOPLEFT", 5, -(((pos - 1) * 45) + 10))
+        framesRow.frame:SetPoint("TOPLEFT", LootHelper.ScrollChildFrame, "TOPLEFT", 5, -(((pos - 1) * 45) + 10))
     end
 end
 
@@ -388,7 +395,7 @@ function LootHelper:GetChatMessageEventData(msg)
                     rollType = RollType.Pass,
                     player = {
                         name = playerName,
-                        class = UnitClass(playerName)
+                        class = string.upper(UnitClass(playerName))
                     }
                 }
             end
@@ -403,7 +410,7 @@ function LootHelper:GetChatMessageEventData(msg)
                 rollValue = tonumber(msgTokens[5]),
                 player = {
                     name = playerName,
-                    class = UnitClass(playerName)
+                    class = string.upper(UnitClass(playerName))
                 }
             }
         else
@@ -416,7 +423,7 @@ function LootHelper:GetChatMessageEventData(msg)
                     itemId = itemId,
                     player = {
                         name = playerName,
-                        class = UnitClass(playerName)
+                        class = string.upper(UnitClass(playerName))
                     }
                 }
             else

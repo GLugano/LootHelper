@@ -93,7 +93,10 @@ local function genOrderedIndex(t)
     local orderedIndex = {}
 
     for key in pairs(t) do
-        table.insert(orderedIndex, key)
+        
+        if (tonumber(key) ~= nil) then
+            table.insert(orderedIndex, key)
+        end
     end
 
     table.sort(orderedIndex)
