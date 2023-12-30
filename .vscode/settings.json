@@ -18,6 +18,9 @@
         "ToggleLootHistoryFrame",
         "GroupLootHistoryFrame",
         "LootHistoryFrameMixin",
-        "SHOW"
+        "SHOW",
+        "class",
+        "ROLL",
+        "PLAYER"
     ]
 }

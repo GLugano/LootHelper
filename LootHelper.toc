@@ -3,7 +3,7 @@
 ## Title: LootHelper
 ## Notes: Addon to help to track loot
 ## Author: Cacetinho
-## SavedVariablesPerCharacter: MODAL_VISIBLE
+## SavedVariablesPerCharacter: ModalVisible, LootBag
 
 Libs\LibStub.lua
 Libs\AceConfig-3.0\AceConfig-3.0.lua

@@ -7,13 +7,28 @@ local ADDON_PREFIX = "LootHelper"
 ADDON.Utils:SetPrefix(ADDON_PREFIX)
 
 -------------------------------------------------------------------------
---- Normal variables
-local LOOT_HELPER = {}
+--- Enums
+local ChatMsgType = {
+    ROLL_START = "roll_start",
+    ROLL_ENDED = "roll_ended",
+    PLAYER_ROLL = "player_roll",
+    ROLL_ALL_PASS = "roll_all_pass"
+}
 
-LOOT_HELPER.MainFrameRef = nil
-LOOT_HELPER.HeaderTextRef = nil
-LOOT_HELPER.MinimapIconOptions = LOOT_HELPER.MinimapIconOptions or { hide = false };
-LOOT_HELPER.MinimapIcon = LDB:NewDataObject(
+local RollType = {
+    NEED = "need",
+    GREED = "greed",
+    PASS = "pass"
+}
+
+--- Normal variables
+local LootHelper = {}
+
+LootHelper.LootHistory = {}
+LootHelper.MainFrameRef = nil
+LootHelper.HeaderTextRef = nil
+LootHelper.MinimapIconOptions = LootHelper.MinimapIconOptions or { hide = false };
+LootHelper.MinimapIcon = LDB:NewDataObject(
     ADDON.Utils:ApplyPrefix("MinimapIcon"),
     {
         type = "launcher",
@@ -24,9 +39,9 @@ LOOT_HELPER.MinimapIcon = LDB:NewDataObject(
         tocname = ADDON_NAME,
         OnClick = function(self, button)
             if (button == "LeftButton") then
-                LOOT_HELPER:ShowMainFrame()
-            -- elseif (button == "RightButton") then
-            --     LOOT_HELPER:OpenOptions()
+                LootHelper:ShowMainFrame()
+                -- elseif (button == "RightButton") then
+                --     LootHelper:OpenOptions()
             end
         end,
         OnTooltipShow = function(self)
@@ -40,33 +55,33 @@ LOOT_HELPER.MinimapIcon = LDB:NewDataObject(
     }
 )
 
-function LOOT_HELPER:ShowMainFrame()
-    if (LOOT_HELPER.MainFrameRef) then
-        LOOT_HELPER.MainFrameRef:Show()
+function LootHelper:ShowMainFrame()
+    if (LootHelper.MainFrameRef) then
+        LootHelper.MainFrameRef:Show()
     end
 end
 
-function LOOT_HELPER:HideMainFrame()
-    if (LOOT_HELPER.MainFrameRef) then
-        LOOT_HELPER.MainFrameRef:Hide()
+function LootHelper:HideMainFrame()
+    if (LootHelper.MainFrameRef) then
+        LootHelper.MainFrameRef:Hide()
     end
 end
 
-function LOOT_HELPER:ShowChatNotification(text)
-    print("|cffddff00[CLH]|r " .. text)
+function LootHelper:ShowChatNotification(text)
+    print("|cffddff00[LH]|r " .. text)
 end
 
-function LOOT_HELPER:OpenOptions()
+function LootHelper:OpenOptions()
     InterfaceOptionsFrame_OpenToCategory(ADDON_NAME)
 end
 
-function LOOT_HELPER:CreateConfigFrame()
-    LOOT_HELPER.ConfigFrame = CreateFrame("FRAME", ADDON.Utils:ApplyPrefix("ConfigFrame"))
-    LOOT_HELPER.ConfigFrame.name = ADDON_NAME
+function LootHelper:CreateConfigFrame()
+    LootHelper.ConfigFrame = CreateFrame("FRAME", ADDON.Utils:ApplyPrefix("ConfigFrame"))
+    LootHelper.ConfigFrame.name = ADDON_NAME
 
     ---@type CheckButton
     local autoLoggingCheckbox = ADDON.Utils:CreateCheckbox(
-        LOOT_HELPER.ConfigFrame,
+        LootHelper.ConfigFrame,
         "Auto logging",
         "Start the log when entering raids (will be updated each phase)",
         ---@param self CheckButton
@@ -76,30 +91,34 @@ function LOOT_HELPER:CreateConfigFrame()
     )
 
     autoLoggingCheckbox:SetChecked(CONFIG_AUTO_START_LOG);
-    autoLoggingCheckbox:SetPoint("TOPLEFT", LOOT_HELPER.ConfigFrame, "TOPLEFT", 0, -16)
+    autoLoggingCheckbox:SetPoint("TOPLEFT", LootHelper.ConfigFrame, "TOPLEFT", 0, -16)
     autoLoggingCheckbox:Show()
 
     -- ---@type CheckButton
     -- local testCheckbox = ADDON.Utils:CreateCheckbox(
-    --     LOOT_HELPER.ConfigFrame,
+    --     LootHelper.ConfigFrame,
     --     "Test",
     --     "Test"
     -- )
 
-    -- testCheckbox:SetPoint("TOPLEFT", LOOT_HELPER.ConfigFrame, "TOPLEFT", 0, -48)
+    -- testCheckbox:SetPoint("TOPLEFT", LootHelper.ConfigFrame, "TOPLEFT", 0, -48)
     -- testCheckbox:Show()
 
-    -- InterfaceOptions_AddCategory(LOOT_HELPER.ConfigFrame)
+    -- InterfaceOptions_AddCategory(LootHelper.ConfigFrame)
 end
 
 -- Only works if this runs when ADDON_LOADED is running or already executed
-function LOOT_HELPER:VerifySavedVariables()
-    if (MODAL_VISIBLE == nil) then
-        MODAL_VISIBLE = true
+function LootHelper:VerifySavedVariables()
+    if (ModalVisible == nil) then
+        ModalVisible = true
+    end
+
+    if (LootBag == nil) then
+        LootBag = {}
     end
 end
 
-function LOOT_HELPER:SetupSlashCommands()
+function LootHelper:SetupSlashCommands()
     SLASH_LootHelper1 = "/clh"
     SlashCmdList.LootHelper = function(strParam)
         if (not strParam or strParam:trim() == "") then
@@ -110,116 +129,335 @@ function LOOT_HELPER:SetupSlashCommands()
             print("- close: Close the window")
             -- print("- options: Open the options tab")
         elseif (strParam == "open") then
-            LOOT_HELPER:ShowMainFrame()
+            LootHelper:ShowMainFrame()
         elseif (strParam == "close") then
-            LOOT_HELPER:HideMainFrame()
+            LootHelper:HideMainFrame()
             -- elseif (strParam == "options") then
-            --     LOOT_HELPER:OpenOptions()
+            --     LootHelper:OpenOptions()
         end
     end
 end
 
----------------------------------------------------------------------------------
---- Local Functions
-local function createMainFrame()
-    LOOT_HELPER.MainFrameRef = CreateFrame(
+function LootHelper:UpdateList()
+    local size = ADDON.Utils:GetTableSize(LootBag)
+    local pos = 0
+
+    if (size == 0) then
+        return
+    end
+
+    for key in ADDON.Utils:OrderedPairs(LootBag) do
+        local row = LootBag[key]
+        pos = pos + 1
+
+        if (not row.frame) then
+            row.frame = CreateFrame("Frame", nil, LootHelper.ScrollChildFrame)
+            row.frame:SetWidth(150)
+            row.frame:SetHeight(45)
+            row.frame:Show()
+
+            row.frameIcon = row.frame:CreateTexture(nil, "ARTWORK")
+            row.frameIcon:SetTexture(row.itemIcon)
+            row.frameIcon:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 15, 0)
+            -- row.frameIcon:SetAllPoints(row.frame)
+            row.frameIcon:SetSize(30, 30)
+
+            row.frameHeader = row.frame:CreateFontString(nil, "OVERLAY")
+            row.frameHeader:SetFontObject("GameFontHighlight")
+            row.frameHeader:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 50, -2)
+            row.frameHeader:SetText(row.itemLink)
+
+            -- Winner row
+        end
+
+        if (not row.frameWinner) then
+            row.frameWinner = row.frame:CreateFontString(nil, "OVERLAY")
+            row.frameWinner:SetFontObject("GameFontHighlight")
+            row.frameWinner:SetPoint("TOPLEFT", row.frame, "TOPLEFT", 50, -17)
+            row.frameWinner:SetText("-")
+        end
+
+        if (row.isDone) then
+            if (row.winner) then
+                local r, g, b, hex = GetClassColor(row.winner.class)
+                row.frameWinner:SetText("|cffddff00Winner:|r " .. "|c" .. hex .. row.winner.name .. "|r")
+            else
+                row.frameWinner:SetText("All pass")
+            end
+        end
+
+        row.frame:SetPoint("TOPLEFT", LootHelper.ScrollChildFrame, "TOPLEFT", 5, -(((pos - 1) * 45) + 10))
+    end
+end
+
+function LootHelper:CreateMainFrame()
+    LootHelper.MainFrameRef = CreateFrame(
         "Frame",
         ADDON.Utils:ApplyPrefix("MainFrame"),
         UIParent,
         "BasicFrameTemplateWithInset"
     )
-    -- LOOT_HELPER.MainFrameRef:SetBackdrop(DEFAULT_BACKGROUND)
-    -- LOOT_HELPER.MainFrameRef:SetBackdropColor(0.1, 0.1, 0.1, 0.7)
-    LOOT_HELPER.MainFrameRef:SetMovable(true)
-    LOOT_HELPER.MainFrameRef:SetPoint("CENTER", UIParent, "CENTER")
-    LOOT_HELPER.MainFrameRef:SetClampedToScreen(true)
-    LOOT_HELPER.MainFrameRef:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
-    LOOT_HELPER.MainFrameRef:SetSize(200, 75)
+    -- LootHelper.MainFrameRef:SetBackdrop(DEFAULT_BACKGROUND)
+    -- LootHelper.MainFrameRef:SetBackdropColor(0.1, 0.1, 0.1, 0.7)
+    LootHelper.MainFrameRef:SetMovable(true)
+    LootHelper.MainFrameRef:SetPoint("CENTER", UIParent, "CENTER")
+    LootHelper.MainFrameRef:SetClampedToScreen(true)
+    LootHelper.MainFrameRef:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+    LootHelper.MainFrameRef:SetSize(225, 450)
 
-    if (MODAL_VISIBLE) then
-        LOOT_HELPER.MainFrameRef:Show()
+    if (ModalVisible) then
+        LootHelper.MainFrameRef:Show()
     else
-        LOOT_HELPER.MainFrameRef:Hide()
+        LootHelper.MainFrameRef:Hide()
     end
 
     -- Moviment Config
-    LOOT_HELPER.MainFrameRef.isMoving = false
-    LOOT_HELPER.MainFrameRef:SetScript(
+    LootHelper.MainFrameRef.isMoving = false
+    LootHelper.MainFrameRef:SetScript(
         "OnMouseDown",
         function(self, button)
-            if (button == "MiddleButton" and not LOOT_HELPER.MainFrameRef.isMoving) then
-                LOOT_HELPER.MainFrameRef:StartMoving();
-                LOOT_HELPER.MainFrameRef.isMoving = true;
+            if (button == "MiddleButton" and not LootHelper.MainFrameRef.isMoving) then
+                LootHelper.MainFrameRef:StartMoving();
+                LootHelper.MainFrameRef.isMoving = true;
             end
         end
     )
 
-    LOOT_HELPER.MainFrameRef:SetScript(
+    LootHelper.MainFrameRef:SetScript(
         "OnMouseUp",
         function(self, button)
-            if (button == "MiddleButton" and LOOT_HELPER.MainFrameRef.isMoving) then
-                LOOT_HELPER.MainFrameRef:StopMovingOrSizing();
-                LOOT_HELPER.MainFrameRef.isMoving = false;
+            if (button == "MiddleButton" and LootHelper.MainFrameRef.isMoving) then
+                LootHelper.MainFrameRef:StopMovingOrSizing();
+                LootHelper.MainFrameRef.isMoving = false;
             end
         end
     )
 
     -- Hide Event
-    LOOT_HELPER.MainFrameRef:SetScript("OnHide", function() MODAL_VISIBLE = false end)
-    LOOT_HELPER.MainFrameRef:SetScript("OnShow", function() MODAL_VISIBLE = true end)
+    LootHelper.MainFrameRef:SetScript("OnHide", function() ModalVisible = false end)
+    LootHelper.MainFrameRef:SetScript("OnShow", function() ModalVisible = true end)
 
     --- Header
-    LOOT_HELPER.HeaderTextRef = LOOT_HELPER.MainFrameRef:CreateFontString(nil, "OVERLAY")
-    LOOT_HELPER.HeaderTextRef:SetFontObject("GameFontHighlight")
-    LOOT_HELPER.HeaderTextRef:SetPoint("CENTER", LOOT_HELPER.MainFrameRef.TitleBg, "CENTER", 11, 0)
-    LOOT_HELPER.HeaderTextRef:SetText(ADDON.Utils:ApplyPrefix(""))
+    LootHelper.HeaderTextRef = LootHelper.MainFrameRef:CreateFontString(nil, "OVERLAY")
+    LootHelper.HeaderTextRef:SetFontObject("GameFontHighlight")
+    LootHelper.HeaderTextRef:SetPoint("CENTER", LootHelper.MainFrameRef.TitleBg, "CENTER", 11, 0)
+    LootHelper.HeaderTextRef:SetText(ADDON.Utils:ApplyPrefix(""))
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, LootHelper.MainFrameRef, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 0, -25)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -27, 4)
+    -- scrollFrame:SetVerticalScroll
+
+    LootHelper.ScrollChildFrame = CreateFrame("Frame")
+    LootHelper.ScrollChildFrame:SetWidth(LootHelper.MainFrameRef:GetWidth() - 18)
+    LootHelper.ScrollChildFrame:SetHeight(1)
+
+    scrollFrame:SetScrollChild(LootHelper.ScrollChildFrame)
 end
 
-local function initEvents()
-    if (not LOOT_HELPER.MainFrameRef) then
+function LootHelper:InitEvents()
+    if (not LootHelper.MainFrameRef) then
         return
     end
 
-    LOOT_HELPER.MainFrameRef:RegisterEvent("ADDON_LOADED")
-    LOOT_HELPER.MainFrameRef:RegisterEvent("LOOT_ITEM_AVAILABLE")
-    LOOT_HELPER.MainFrameRef:RegisterEvent("LOOT_READY")
-    LOOT_HELPER.MainFrameRef:RegisterEvent("LOOT_HISTORY_FULL_UPDATE")
-    -- LOOT_HELPER.MainFrameRef:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    LOOT_HELPER.MainFrameRef:SetScript(
+    LootHelper.MainFrameRef:RegisterEvent("ADDON_LOADED")
+    -- LootHelper.MainFrameRef:RegisterEvent("LOOT_HISTORY_FULL_UPDATE")
+    -- LootHelper.MainFrameRef:RegisterEvent("LOOT_HISTORY_ROLL_COMPLETE")
+    LootHelper.MainFrameRef:RegisterEvent("CHAT_MSG_LOOT")
+    LootHelper.MainFrameRef:SetScript(
         "OnEvent",
-        function(self, event, addOnName)
+        function(self, event, arg1, arg2, arg3)
             if (event == "ADDON_LOADED") then
-                if (addOnName == ADDON_NAME) then
-                    LOOT_HELPER:ShowChatNotification("LootHelper loaded")
-                    LOOT_HELPER:SetupSlashCommands()
-                    LOOT_HELPER:VerifySavedVariables()
-                    LOOT_HELPER:CreateConfigFrame()
+                if (arg1 == ADDON_NAME) then
+                    LootHelper:ShowChatNotification("LootHelper loaded")
+                    LootHelper:SetupSlashCommands()
+                    LootHelper:VerifySavedVariables()
+                    LootHelper:CreateConfigFrame()
+                    LootHelper:UpdateList()
+
+                    if (ModalVisible) then
+                        LootHelper:ShowMainFrame()
+                    end
                 end
-            elseif (addOnName == nil) then
-               SHOW_LOOT_HISTORY()
+            elseif (event == "CHAT_MSG_LOOT") then
+                LootHelper:ChatMsgLootEvent(arg1)
             end
         end
     )
 end
 
-function SHOW_LOOT_HISTORY()
-    local numItems = C_LootHistory.GetNumItems();
-	for i=1, numItems do
+function LootHelper:ChatMsgLootEvent(msg)
+    local eventData = LootHelper:GetChatMessageEventData(msg)
 
-		local rollID, itemLink, numPlayers, isDone, winnerIdx = C_LootHistory.GetItem(i);
-        print(itemLink)
+    if (eventData == nil) then
+        return
     end
+
+    local pos, item = LootHelper:GetLootStillRolling(eventData.itemId)
+
+    if (not item) then
+        item = {
+            itemId = eventData.itemId,
+            itemLink = eventData.itemLink,
+            itemIcon = GetItemIcon(eventData.itemId),
+            players = {},
+            isDone = false,
+            winner = nil
+        }
+    end
+
+    if (eventData.type == ChatMsgType.PLAYER_ROLL) then
+        if (eventData.player) then
+            local playerFoundInList = false
+
+            for _, player in ipairs(item.players) do
+                if (player.name == eventData.player.name) then
+                    playerFoundInList = true
+                    break
+                end
+            end
+
+            if (not playerFoundInList) then
+                local playerRoll = {
+                    name = eventData.player.name,
+                    class = eventData.player.class,
+                    roll = eventData.rollValue,
+                    type = eventData.rollType
+                }
+
+                table.insert(item.players, playerRoll)
+            end
+        end
+    elseif (eventData.type == ChatMsgType.ROLL_ENDED) then
+        local playerRollFound = nil
+
+        for _, player in ipairs(item.players) do
+            if (player.name == eventData.player.name) then
+                playerRollFound = player
+            end
+        end
+
+        item.isDone = true
+
+        if (playerRollFound) then
+            item.winner = playerRollFound
+        else
+            item.winner = {
+                name = eventData.player.name,
+                class = eventData.player.class,
+                roll = nil,
+                type = nil,
+            }
+        end
+    end
+
+    if (not pos) then
+        table.insert(LootBag, item)
+    end
+
+    LootHelper:UpdateList()
 end
 
-local function createMapIcon()
-    LDBIcon:Register(
-        ADDON.Utils:ApplyPrefix("MapIcon"),
-        LOOT_HELPER.MinimapIcon,
-        LOOT_HELPER.MinimapIconOptions
-    )
+function LootHelper:GetChatMessageEventData(msg)
+    local itemLink = LootHelper:GetItemLinkFromChatMessage(msg)
+
+    if (not itemLink) then
+        return
+    end
+
+    local itemId = GetItemInfoFromHyperlink(itemLink)
+    local msgTokens = ADDON.Utils:StringSplt(msg, " ")
+    local playerName = nil
+    local startPos = string.find(msgTokens[1], "|HlootHistory")
+
+    if (startPos ~= nil) then
+        playerName = ADDON.Utils:CoercePlayerName(msgTokens[2])
+
+        if (msgTokens[3] == "passed") then
+            if (msgTokens[2] == "Everyone") then
+                return {
+                    type = ChatMsgType.ROLL_ALL_PASS,
+                    itemLink = itemLink,
+                    itemId = itemId
+                }
+            else
+                return {
+                    type = ChatMsgType.PLAYER_ROLL,
+                    itemLink = itemLink,
+                    itemId = itemId,
+                    rollType = RollType.Pass,
+                    player = {
+                        name = playerName,
+                        class = UnitClass(playerName)
+                    }
+                }
+            end
+        elseif (msgTokens[2] == "Greed" or msgTokens[2] == "Need") then
+            local rollType = ADDON.Utils:Ternary(msgTokens[2] == "Need", RollType.NEED, RollType.GREED)
+
+            return {
+                type = ChatMsgType.PLAYER_ROLL,
+                itemLink = itemLink,
+                itemId = itemId,
+                rollType = rollType,
+                rollValue = tonumber(msgTokens[5]),
+                player = {
+                    name = playerName,
+                    class = UnitClass(playerName)
+                }
+            }
+        else
+            if (msgTokens[3] == "won:") then
+                playerName = ADDON.Utils:CoercePlayerName(msgTokens[2])
+
+                return {
+                    type = ChatMsgType.ROLL_ENDED,
+                    itemLink = itemLink,
+                    itemId = itemId,
+                    player = {
+                        name = playerName,
+                        class = UnitClass(playerName)
+                    }
+                }
+            else
+                if (string.find(msgTokens[2], "|H")) then
+                    return {
+                        type = ChatMsgType.ROLL_START,
+                        itemLink = itemLink,
+                        itemId = itemId,
+                    }
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+function LootHelper:GetItemLinkFromChatMessage(msg)
+    local s, _ = string.find(msg, "%|c")
+
+    if (s == nil) then
+        return nil
+    end
+
+    local _, e = string.find(msg, "%|h|r")
+    local itemLink = string.sub(msg, s, e)
+
+    return itemLink
+end
+
+function LootHelper:GetLootStillRolling(itemId)
+    for pos, value in ipairs(LootBag) do
+        if (value.itemId == itemId and not value.isDone) then
+            return pos, value
+        end
+    end
+
+    return nil, nil
 end
 
 --- Start of the addon
-createMainFrame()
-createMapIcon()
-initEvents()
+LootHelper:CreateMainFrame()
+ADDON.Utils:CreateMapIcon(LootHelper)
+LootHelper:InitEvents()
