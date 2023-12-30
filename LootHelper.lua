@@ -164,7 +164,7 @@ function LootHelper:UpdateList()
 
             framesRow.frameIcon = framesRow.frame:CreateTexture(nil, "ARTWORK")
             framesRow.frameIcon:SetTexture(row.itemIcon)
-            framesRow.frameIcon:SetPoint("TOPLEFT", framesRow.frame, "TOPLEFT", 15, 0)
+            framesRow.frameIcon:SetPoint("TOPLEFT", framesRow.frame, "TOPLEFT", 10, 0)
             -- framesRow.frameIcon:SetAllPoints(framesRow.frame)
             framesRow.frameIcon:SetSize(30, 30)
 
